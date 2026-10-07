@@ -76,6 +76,16 @@ export interface ThreadTitleGenerationInput {
   modelSelection: ModelSelection;
 }
 
+export interface ReplySuggestionGenerationInput {
+  cwd: string;
+  message: string;
+  modelSelection: ModelSelection;
+}
+
+export interface ReplySuggestionGenerationResult {
+  reply: string;
+}
+
 export interface ThreadTitleGenerationResult {
   title: string;
   needsRefinement?: boolean | undefined;
@@ -108,6 +118,10 @@ export class TextGeneration extends Context.Service<
       input: BranchNameGenerationInput,
     ) => Effect.Effect<BranchNameGenerationResult, TextGenerationError>;
 
+    readonly generateReplySuggestion: (
+      input: ReplySuggestionGenerationInput,
+    ) => Effect.Effect<ReplySuggestionGenerationResult, TextGenerationError>;
+
     /** Generate a concise thread title from a first message or thread history. */
     readonly generateThreadTitle: (
       input: ThreadTitleGenerationInput,
@@ -119,7 +133,8 @@ type TextGenerationOp =
   | "generateCommitMessage"
   | "generatePrContent"
   | "generateBranchName"
-  | "generateThreadTitle";
+  | "generateThreadTitle"
+  | "generateReplySuggestion";
 
 const resolveInstance = (
   registry: ProviderInstanceRegistry.ProviderInstanceRegistry["Service"],
@@ -155,6 +170,10 @@ export const make = Effect.gen(function* () {
     generateBranchName: (input) =>
       resolveInstance(registry, "generateBranchName", input.modelSelection.instanceId).pipe(
         Effect.flatMap((textGeneration) => textGeneration.generateBranchName(input)),
+      ),
+    generateReplySuggestion: (input) =>
+      resolveInstance(registry, "generateReplySuggestion", input.modelSelection.instanceId).pipe(
+        Effect.flatMap((textGeneration) => textGeneration.generateReplySuggestion(input)),
       ),
     generateThreadTitle: (input) =>
       resolveInstance(registry, "generateThreadTitle", input.modelSelection.instanceId).pipe(

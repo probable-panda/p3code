@@ -12,6 +12,14 @@ becomes an attachment when inserting it would exceed the message limit. On a
 hardware keyboard, use `Cmd+Shift+V` on Apple devices or `Ctrl+Shift+V` elsewhere
 to keep a large paste editable in the composer instead.
 
+## Suggested replies
+
+On web and desktop, an empty composer can suggest a reply after the agent finishes.
+Press `Tab` to accept it, then send it with `Enter` or your configured send shortcut.
+Typing your own reply or pressing `Escape` dismisses the suggestion. Suggestions use
+the provider’s built-in reply when available. Otherwise, they use your configured
+text generation model.
+
 ## Attach files
 
 Attach up to 100 files per message. Each image can be up to 10 MiB, with at most
