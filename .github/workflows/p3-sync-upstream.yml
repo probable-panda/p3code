@@ -1,0 +1,87 @@
+name: P3 upstream sync
+
+on:
+  schedule:
+    - cron: "37 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: p3-upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.repository == 'probable-panda/p3code'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: p3
+          fetch-depth: 0
+
+      - name: Test sync behavior
+        run: node --test .github/scripts/p3-sync-upstream.test.cjs
+
+      - name: Prepare upstream merge
+        id: merge
+        run: bash .github/scripts/p3-sync-upstream.sh prepare
+
+      - name: Install native build dependencies
+        if: steps.merge.outputs.changed == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential libsecret-1-dev pkg-config
+
+      - name: Setup Vite+
+        if: steps.merge.outputs.changed == 'true'
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: true
+
+      - name: Install test runtimes
+        if: steps.merge.outputs.changed == 'true'
+        run: |
+          vp run --filter @t3tools/desktop ensure:electron
+          node apps/server/node_modules/playwright-core/cli.js install --with-deps --only-shell chromium
+
+      - name: Lint and typecheck
+        if: steps.merge.outputs.changed == 'true'
+        run: |
+          vp check
+          vp run typecheck
+
+      - name: Test
+        if: steps.merge.outputs.changed == 'true'
+        run: vp run --parallel --concurrency-limit 2 --filter '!@t3tools/monorepo' test
+
+      - name: Build desktop and bundled web/server
+        if: steps.merge.outputs.changed == 'true'
+        run: |
+          vp run build:desktop
+          node apps/desktop/scripts/verify-preload-bundle.mjs
+
+      - name: Publish validated merge
+        if: steps.merge.outputs.changed == 'true'
+        env:
+          P3_UPSTREAM_SHA: ${{ steps.merge.outputs.upstream_sha }}
+        run: bash .github/scripts/p3-sync-upstream.sh publish
+
+      - name: Report result
+        if: always()
+        env:
+          RESULT: ${{ job.status }}
+          CHANGED: ${{ steps.merge.outputs.changed }}
+        run: |
+          if [[ "$RESULT" != success ]]; then
+            echo 'Upstream sync stopped. Check the failed step for conflicts or validation failures. No validated update was published.' >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "$CHANGED" == true ]]; then
+            echo 'Updated p3 and the main upstream mirror after lint, typecheck, tests, and the desktop build passed.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'P3 already includes the latest upstream main.' >> "$GITHUB_STEP_SUMMARY"
+          fi
