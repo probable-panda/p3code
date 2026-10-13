@@ -70,6 +70,16 @@ export interface ThreadTitleGenerationInput {
   modelSelection: ModelSelection;
 }
 
+export interface ReplySuggestionGenerationInput {
+  cwd: string;
+  message: string;
+  modelSelection: ModelSelection;
+}
+
+export interface ReplySuggestionGenerationResult {
+  reply: string;
+}
+
 export interface ThreadTitleGenerationResult {
   title: string;
   needsRefinement?: boolean | undefined;
@@ -117,6 +127,10 @@ export type ReviewGuideGenerationResult = Omit<
 
 /** Commit, change request, branch, and title generation backed by one provider instance. */
 export interface ProviderTextGeneration {
+  readonly generateReplySuggestion: (
+    input: ReplySuggestionGenerationInput,
+  ) => Effect.Effect<ReplySuggestionGenerationResult, TextGenerationError>;
+
   /**
    * Generate a commit message from staged change context.
    */

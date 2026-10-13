@@ -1,3 +1,4 @@
+import * as ThreadReplySuggestionService from "./orchestration-v2/ThreadReplySuggestionService.ts";
 import { OrchestrationDispatchCommandError } from "@t3tools/contracts";
 import * as Crypto from "effect/Crypto";
 import * as Orchestrator from "./orchestration-v2/Orchestrator.ts";
@@ -1221,6 +1222,7 @@ const layerWsRpc = (
       const projectService = yield* ProjectService.ProjectService;
       const managedFolders = yield* ManagedProjectFolders.ManagedProjectFolders;
       const threadSearch = yield* ThreadSearch.ThreadSearch;
+      const replySuggestions = yield* ThreadReplySuggestionService.ThreadReplySuggestionService;
 
       const providerSessionsV2 = yield* ProviderSessionManager.ProviderSessionManagerV2;
       const mcpAppRequests = yield* McpAppRequests.McpAppRequests;
@@ -1833,6 +1835,7 @@ const layerWsRpc = (
       });
 
       const handlers = ServerWsRpcGroup.of({
+        [WS_METHODS.threadSuggestReply]: (input) => replySuggestions.suggest(input),
         [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: (command) =>
           Effect.annotateCurrentSpan({
             "orchestration_v2.command_id": command.commandId,

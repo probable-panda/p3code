@@ -1,3 +1,4 @@
+import * as ThreadReplySuggestionService from "./ThreadReplySuggestionService.ts";
 import * as UsageLimitRecoveryWorker from "./UsageLimitRecoveryWorker.ts";
 import * as Scheduler from "../scheduling/Scheduler.ts";
 import * as Layer from "effect/Layer";
@@ -296,6 +297,11 @@ const layerThreadTitleRegenerationProvided = ThreadTitleRegenerationService.laye
     Layer.mergeAll(layerThreadManagementProvided, ProjectStore.layer, TextGeneration.layer),
   ),
 );
+const layerThreadReplySuggestionProvided = ThreadReplySuggestionService.layer.pipe(
+  Layer.provide(
+    Layer.mergeAll(layerThreadManagementProvided, ProjectStore.layer, TextGeneration.layer),
+  ),
+);
 const layerEffectExecutorProvided = EffectWorker.layerExecutor.pipe(
   Layer.provide(
     Layer.mergeAll(
@@ -337,6 +343,7 @@ const layerMcpAppRequestsProvided = McpAppRequests.layer.pipe(
 );
 
 export const layer = Layer.mergeAll(
+  layerThreadReplySuggestionProvided,
   layerOrchestratorProvided,
   layerMcpAppRequestsProvided,
   layerThreadManagementProvided,

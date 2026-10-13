@@ -20,6 +20,7 @@ import {
   buildPrContentPrompt,
   buildReviewGuidePrompt,
   buildThreadTitlePrompt,
+  buildReplySuggestionPrompt,
 } from "./textGenerationPrompts.ts";
 import {
   sanitizeCommitSubject,
@@ -189,7 +190,21 @@ export function fromRunner(name: string, run: Runner): ProviderTextGeneration {
     });
   });
 
+  const generateReplySuggestion: ProviderTextGeneration["generateReplySuggestion"] = Effect.fn(
+    `${name}.generateReplySuggestion`,
+  )(function* (input) {
+    const generated = yield* run({
+      operation: "generateReplySuggestion",
+      cwd: input.cwd,
+      modelSelection: input.modelSelection,
+      ...buildReplySuggestionPrompt(input.message),
+    });
+    const reply = generated.reply.trim().replace(/\s+/g, " ");
+    return { reply: reply.length <= 160 ? reply : "" };
+  });
+
   return {
+    generateReplySuggestion,
     generateCommitMessage,
     generatePrContent,
     generateBranchName,

@@ -1013,6 +1013,7 @@ export function makeClaudeQueryOptions(input: {
         ? "bypassPermissions"
         : (input.permissionMode ?? "default")),
     includePartialMessages: true,
+    promptSuggestions: true,
     ...(compiledSelection.effort === undefined
       ? {}
       : {
@@ -5981,6 +5982,10 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 const providerThread: OrchestrationV2ProviderThread = {
                   ...input.context.input.providerThread,
                   providerSessionId: session.id,
+                  nativeMetadata: {
+                    ...input.context.input.providerThread.nativeMetadata,
+                    replySuggestion: { runId: input.context.input.runId, reply: "" },
+                  },
                   ...(clearConversationHead ? { nativeConversationHeadRef: null } : {}),
                   ...(nativeThreadId !== null && goalsByNativeThread.has(nativeThreadId)
                     ? { goal: goalsByNativeThread.get(nativeThreadId) ?? null }
@@ -6614,6 +6619,37 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           }
 
           const message = input.message;
+          if (message.type === "prompt_suggestion") {
+            // Suggestions arrive after result, when the root turn is already settled.
+            // A newer active turn makes the old suggestion ineligible.
+            if (
+              (yield* Ref.get(activeTurn)) !== null ||
+              message.session_id !== liveQuery.nativeThreadId
+            )
+              return;
+            const prior = (yield* Ref.get(lastProviderThreadByNativeThread)).get(
+              liveQuery.nativeThreadId,
+            );
+            const suggestion = prior?.nativeMetadata?.replySuggestion;
+            if (!prior || !suggestion) return;
+            const reply = message.suggestion.replace(/\s+/g, " ").trim();
+            if (!reply || reply.length > 160) return;
+            const providerThread = {
+              ...prior,
+              nativeMetadata: {
+                ...prior.nativeMetadata,
+                replySuggestion: { ...suggestion, reply },
+              },
+              updatedAt: yield* DateTime.now,
+            };
+            yield* rememberProviderThread(providerThread);
+            yield* emitProviderEvent({
+              type: "provider_thread.updated",
+              driver: CLAUDE_PROVIDER,
+              providerThread,
+            });
+            return;
+          }
           // Before any routing: a Monitor started during an idle wake turn
           // reports its task before the drain replays the tool call.
           yield* trackClaudeMonitorCalls(message);

@@ -218,6 +218,7 @@ describe("ClaudeAdapterV2 runtime query policy", () => {
       resume,
       cwd: "/workspace",
     });
+    assert.isTrue(options.promptSuggestions);
     assert.deepEqual(options.thinking, { type: "adaptive", display: "summarized" });
     assert.equal(options.extraArgs?.["thinking-display"], "summarized");
     assert.include(options.settings, { showThinkingSummaries: true });
@@ -2362,6 +2363,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
         yield* Queue.unbounded<
           Extract<ProviderAdapter.ProviderAdapterV2Event, { type: "subagent.updated" }>
         >();
+      const suggestionReceipts = yield* Queue.unbounded<string>();
       const systemNoticeReceipts =
         yield* Queue.unbounded<
           Extract<ProviderAdapter.ProviderAdapterV2Event, { type: "turn_item.updated" }>
@@ -2461,6 +2463,15 @@ describe("ClaudeAdapterV2 background wake turns", () => {
             if (event.type === "subagent.updated") {
               yield* Queue.offer(subagentReceipts, event);
             }
+            if (
+              event.type === "provider_thread.updated" &&
+              event.providerThread.nativeMetadata?.replySuggestion?.reply
+            ) {
+              yield* Queue.offer(
+                suggestionReceipts,
+                event.providerThread.nativeMetadata.replySuggestion.reply,
+              );
+            }
             if (event.type === "turn.terminal") {
               yield* Queue.offer(terminalReceipts, event);
             }
@@ -2503,12 +2514,57 @@ describe("ClaudeAdapterV2 background wake turns", () => {
         terminalReceipts,
         subagentReceipts,
         systemNoticeReceipts,
+        suggestionReceipts,
         getOpenedOptions: () => openedOptions,
         terminalEvents,
         hasPendingBackgroundWork,
       };
     });
   const makeWakeHarness = makeWakeHarnessWithOptions();
+
+  it.effect("receives native suggestions after result without starting another turn", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const harness = yield* makeWakeHarness;
+        const turn = makeClaudeTestTurnInput({
+          threadId: harness.threadId,
+          providerThread: harness.providerThread,
+          now: yield* DateTime.now,
+          attemptId: RunAttemptId.make("native-suggestion"),
+          text: "Fix the bug",
+          attachments: [],
+        });
+        yield* harness.runtime.startTurn(turn);
+        yield* harness.offerAndWait(turnOneResult);
+        yield* Queue.take(harness.terminalReceipts);
+        const pending = harness.events.findLast(
+          (event) => event.type === "provider_thread.updated",
+        );
+        assert.equal(
+          pending?.type === "provider_thread.updated"
+            ? pending.providerThread.nativeMetadata?.replySuggestion?.runId
+            : null,
+          turn.runId,
+        );
+        yield* harness.offerAndWait(
+          claudeSdkFrame({
+            type: "prompt_suggestion",
+            suggestion: "  Yes,  do that.  ",
+            uuid: "00000000-0000-4000-8000-000000000999",
+            session_id: WAKE_NATIVE_SESSION,
+          }),
+        );
+        assert.equal(yield* Queue.take(harness.suggestionReceipts), "Yes, do that.");
+        assert.lengthOf(harness.offeredMessages, 1);
+        assert.lengthOf(harness.terminalEvents(), 1);
+        assert.isFalse(yield* harness.hasPendingBackgroundWork);
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+        ),
+      ),
+    ),
+  );
 
   it.effect.each([
     { isError: false, title: "Check weather" },
