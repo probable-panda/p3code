@@ -1,5 +1,51 @@
 import { threadRuntimeIsActive, type EnvironmentThreadShell } from "./models.ts";
 import { toSortableTimestamp } from "./threadSort.ts";
+import { Atom } from "effect/reactivity";
+import type { EnvironmentId } from "@t3tools/contracts";
+import type { EnvironmentShellState } from "./shell.ts";
+
+export type WaitingQuestionThread = Pick<
+  EnvironmentThreadShell,
+  "id" | "environmentId" | "projectId" | "title"
+>;
+
+/** Reads only shell summaries; opening a question loads its thread normally. */
+export function createWaitingQuestionThreadsAtom(input: {
+  readonly threadsAtom: Atom.Atom<ReadonlyArray<EnvironmentThreadShell>>;
+  readonly shellStateAtom: (environmentId: EnvironmentId) => Atom.Atom<EnvironmentShellState>;
+}) {
+  let previous: ReadonlyArray<WaitingQuestionThread> = [];
+  return Atom.make((get) => {
+    const next = get(input.threadsAtom)
+      .filter(
+        (thread) =>
+          thread.hasPendingUserInput &&
+          thread.deletedAt === null &&
+          thread.archivedAt === null &&
+          get(input.shellStateAtom(thread.environmentId)).status === "live",
+      )
+      .map(({ id, environmentId, projectId, title }) => ({ id, environmentId, projectId, title }))
+      .sort(
+        (left, right) =>
+          left.environmentId.localeCompare(right.environmentId) || left.id.localeCompare(right.id),
+      );
+    if (
+      next.length === previous.length &&
+      next.every((thread, index) => {
+        const before = previous[index]!;
+        return (
+          thread.id === before.id &&
+          thread.environmentId === before.environmentId &&
+          thread.projectId === before.projectId &&
+          thread.title === before.title
+        );
+      })
+    )
+      return previous;
+    previous = next;
+    return previous;
+  });
+}
 
 // Working section beta, shared so web and mobile fold and order the inbox the
 // same way. Off by default; each client owns its own toggle.

@@ -56,6 +56,7 @@ import {
   useSidebarVisibility,
 } from "./ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
+import { NeedsYou } from "./sidebar/NeedsYou";
 
 const MACOS_TRAFFIC_LIGHTS_LEFT_INSET = "var(--desktop-window-controls-inset, 90px)";
 
@@ -165,6 +166,11 @@ function SidebarControl() {
           Toggle main sidebar{shortcutLabel ? ` (${shortcutLabel})` : ""}
         </TooltipPopup>
       </Tooltip>
+      {!isSidebarVisible && (
+        <div className="pointer-events-auto absolute left-6 top-1">
+          <NeedsYou compact />
+        </div>
+      )}
     </div>
   );
 }
@@ -350,6 +356,9 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
             <ThreadSidebar />
           )}
           <SidebarRail onDoubleClick={resetSidebarWidth} />
+          <div className="shrink-0 px-3 has-[button]:pb-2">
+            <NeedsYou />
+          </div>
         </Sidebar>
         {children}
         <SidebarControl />

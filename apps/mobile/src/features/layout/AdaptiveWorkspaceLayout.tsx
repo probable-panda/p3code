@@ -66,6 +66,7 @@ import { AndroidWorkspaceSidebar } from "../workspace/AndroidWorkspaceSidebar";
 import { useAndroidWorkspaceSelection } from "../workspace/useAndroidWorkspaceSelection";
 import { HomeListOptionsProvider } from "../home/home-list-options";
 import { ThreadNavigationSidebar } from "../threads/ThreadNavigationSidebar";
+import { NeedsYou } from "../threads/NeedsYou";
 import { RenderErrorBoundary, RenderFailureView } from "../../components/RenderErrorBoundary";
 import { WORKSPACE_PANE_TIMING } from "./workspace-pane-animation";
 import { WorkspaceInspectorPane } from "./workspace-inspector-pane";
@@ -600,7 +601,7 @@ function AdaptiveWorkspaceLayoutContent(
 
   const selectAndroidWorkspace = useAndroidWorkspaceSelection();
   const handleSelectThread = useCallback(
-    (thread: EnvironmentThreadShell) => {
+    (thread: Pick<EnvironmentThreadShell, "id" | "environmentId">) => {
       const params = {
         environmentId: String(thread.environmentId),
         threadId: String(thread.id),
@@ -790,6 +791,7 @@ function AdaptiveWorkspaceLayoutContent(
                 {props.children}
               </WorkspaceContentWidthContext>
             </View>
+            <NeedsYou onSelectThread={handleSelectThread} />
           </View>
           <WorkspaceInspectorPane
             pathname={props.pathname}
