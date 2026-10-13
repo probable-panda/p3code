@@ -271,6 +271,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["red green blue orange additions deletions changes counts palette colorblind"],
   },
   {
+    id: "message-minimap",
+    title: "Message minimap",
+    to: "/settings/appearance",
+    searchTerms: ["timeline navigation rail messages hide"],
+  },
+  {
     id: "chat-width",
     title: "Chat width",
     to: "/settings/appearance",
