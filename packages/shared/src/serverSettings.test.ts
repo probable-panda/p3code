@@ -1,6 +1,7 @@
 import {
   DEFAULT_SERVER_SETTINGS,
   ProjectId,
+  ThreadId,
   ProviderDriverKind,
   ProviderInstanceId,
   UsageLimitSourceId,
@@ -53,6 +54,20 @@ describe("fallbackTextGenerationModelSelection", () => {
 });
 
 describe("serverSettings helpers", () => {
+  it("defaults terminal sharing off and patches grants independently per thread", () => {
+    const first = ThreadId.make("first");
+    const second = ThreadId.make("second");
+    expect(DEFAULT_SERVER_SETTINGS.threadAgentTerminalAccess).toEqual({});
+    const enabled = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
+      threadAgentTerminalAccess: { [first]: true, [second]: true },
+    });
+    expect(
+      applyServerSettingsPatch(enabled, {
+        threadAgentTerminalAccess: { [first]: false },
+      }).threadAgentTerminalAccess,
+    ).toEqual({ [first]: false, [second]: true });
+  });
+
   it("changes a cleanup rule without replacing the machine's other rules", () => {
     const enabled = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
       storageCleanup: { worktreeAfterDays: 8, worktreeOnMerge: true, logsAfterDays: 30 },

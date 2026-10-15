@@ -1,3 +1,5 @@
+import { useAtomValue } from "@effect/atom-react";
+import { serverEnvironment } from "../../state/server";
 import {
   AuthTerminalReadScope,
   AuthTerminalOperateScope,
@@ -97,6 +99,10 @@ function TerminalHeader(props: {
   readonly subtitle: string;
   readonly isEnvironmentReady: boolean;
   readonly canOperateTerminal: boolean;
+  readonly supportsAgentTerminalAccess: boolean;
+  readonly canChangeAgentAccess: boolean;
+  readonly agentTerminalAccess: boolean;
+  readonly onToggleAgentAccess: () => void;
   readonly fontSize: number;
   readonly terminalId: string;
   readonly sessions: ReadonlyArray<TerminalMenuSession>;
@@ -125,6 +131,18 @@ function TerminalHeader(props: {
                 icon: "terminal",
                 status: getTerminalStatusLabel(props.status),
                 items: [
+                  ...(props.supportsAgentTerminalAccess
+                    ? [
+                        {
+                          id: "agent-terminal-access",
+                          title: "Agent terminal access",
+                          subtitle: "Allow this thread's agent to read output and send input",
+                          selected: props.agentTerminalAccess,
+                          disabled: !props.canChangeAgentAccess,
+                          onPress: props.onToggleAgentAccess,
+                        },
+                      ]
+                    : []),
                   {
                     id: "text-size",
                     title: "Text size",
@@ -261,6 +279,8 @@ export function ThreadTerminalRouteScreen(props: ThreadTerminalRouteScreenProps)
   const resizeTerminal = useAtomCommand(terminalEnvironment.resize, "terminal resize");
   const clearTerminal = useAtomCommand(terminalEnvironment.clear, "terminal clear");
   const closeTerminal = useAtomCommand(terminalEnvironment.close, "terminal close");
+  const updateSettings = useAtomCommand(serverEnvironment.updateSettings);
+  const [savingAgentAccess, setSavingAgentAccess] = useState(false);
   const openTerminal = useAtomCommand(terminalEnvironment.open, "terminal open");
   const retryEnvironment = useAtomCommand(environmentCatalog.retryNow, "environment retry");
   const connectionsReady = useConnectionsReady();
@@ -543,6 +563,36 @@ export function ThreadTerminalRouteScreen(props: ThreadTerminalRouteScreenProps)
   }, [terminal.buffer, terminal.buffer.length, terminalKey]);
   const cwd = terminal.summary?.cwd ?? selectedThreadProject?.workspaceRoot ?? null;
   const serverConfigs = useServerConfigs();
+  const canChangeAgentAccess = useAtomValue(
+    serverEnvironment.updateSettings.permissionAtom(routeEnvironmentId),
+  );
+  const agentTerminalAccess =
+    routeEnvironmentId !== null &&
+    routeThreadId !== null &&
+    serverConfigs.get(routeEnvironmentId)?.settings.threadAgentTerminalAccess[routeThreadId] ===
+      true;
+  const toggleAgentAccess = async () => {
+    if (
+      routeEnvironmentId === null ||
+      routeThreadId === null ||
+      !canChangeAgentAccess ||
+      savingAgentAccess
+    )
+      return;
+    setSavingAgentAccess(true);
+    try {
+      await updateSettings({
+        environmentId: routeEnvironmentId,
+        input: {
+          patch: {
+            threadAgentTerminalAccess: { [routeThreadId]: !agentTerminalAccess },
+          },
+        },
+      });
+    } finally {
+      setSavingAgentAccess(false);
+    }
+  };
   const hostOs =
     routeEnvironmentId === null
       ? null
@@ -1179,6 +1229,16 @@ export function ThreadTerminalRouteScreen(props: ThreadTerminalRouteScreenProps)
       ) : null}
       <TerminalHeader
         canOperateTerminal={canOperateTerminal}
+        supportsAgentTerminalAccess={
+          routeEnvironmentId !== null &&
+          serverConfigs.get(routeEnvironmentId)?.environment.capabilities.agentTerminalAccess ===
+            true
+        }
+        canChangeAgentAccess={canChangeAgentAccess && !savingAgentAccess}
+        agentTerminalAccess={agentTerminalAccess}
+        onToggleAgentAccess={() => {
+          void toggleAgentAccess();
+        }}
         subtitle={headerSubtitle}
         isEnvironmentReady={isEnvironmentReady}
         fontSize={fontSize}

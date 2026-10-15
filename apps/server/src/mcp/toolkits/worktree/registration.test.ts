@@ -1,3 +1,4 @@
+import * as TerminalManager from "../../../terminal/Manager.ts";
 import * as Orchestrator from "../../../orchestration-v2/Orchestrator.ts";
 import * as ProjectionStore from "../../../orchestration-v2/ProjectionStore.ts";
 import * as DeviceService from "../../../device/DeviceService.ts";
@@ -36,6 +37,7 @@ import * as PreviewAutomationBroker from "../../PreviewAutomationBroker.ts";
 import * as PreviewBrowser from "../../../preview/PreviewBrowser.ts";
 
 const layerStubServices = Layer.mergeAll(
+  Layer.mock(TerminalManager.TerminalManager)({}),
   Layer.mock(Orchestrator.OrchestratorV2)({}),
   Layer.mock(ProjectionStore.ProjectionStoreV2)({}),
   Layer.mock(DeviceService.DeviceService)({}),
@@ -143,6 +145,15 @@ it.effect("production mcp layer lists worktree tools over http", () =>
       // than replacing them.
       expect(toolNames).toContain("preview_status");
       expect(toolNames).toContain("delegate_task");
+      expect(toolNames).toEqual(
+        expect.arrayContaining(["terminal_list", "terminal_read", "terminal_write"]),
+      );
+      expect(tools.find((tool) => tool.name === "terminal_read")?.annotations?.readOnlyHint).toBe(
+        true,
+      );
+      expect(
+        tools.find((tool) => tool.name === "terminal_write")?.annotations?.destructiveHint,
+      ).toBe(true);
 
       // The handoff tool mutates thread state, reaches the network (origin
       // fetch), and runs project setup scripts, so its MCP hints must not

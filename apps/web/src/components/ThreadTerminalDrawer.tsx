@@ -1,3 +1,4 @@
+import { AgentTerminalAccessSwitch } from "./AgentTerminalAccessSwitch";
 import { useAtomValue } from "@effect/atom-react";
 import {
   isAtomCommandInterrupted,
@@ -1577,6 +1578,7 @@ export default function ThreadTerminalDrawer({
             onLostPointerCapture={handleResizePointerEnd}
           />
         ) : null}
+        <AgentTerminalAccessSwitch threadRef={threadRef} />
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-4 py-6 text-center text-sm text-muted-foreground">
           <p>No terminal sessions for this thread yet.</p>
           <Button
@@ -1615,8 +1617,9 @@ export default function ThreadTerminalDrawer({
         />
       ) : null}
 
+      <AgentTerminalAccessSwitch threadRef={threadRef} />
       {!hasTerminalSidebar && (
-        <div className="pointer-events-none absolute right-2 top-2 z-20">
+        <div className="pointer-events-none absolute right-2 top-11 z-20">
           <div className="pointer-events-auto inline-flex items-center overflow-hidden rounded-md border border-border/80 bg-background shadow-xs">
             <TerminalActionButton
               disabled={!canOperateTerminal}

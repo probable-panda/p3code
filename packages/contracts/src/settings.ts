@@ -1141,6 +1141,10 @@ export const ServerSettings = Schema.Struct({
    * between a desktop window and a phone attached to the same server.
    */
   enableAgentBrowserAccess: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  /** Explicit grants for agents to share a thread's terminals; absent means denied. */
+  threadAgentTerminalAccess: Schema.Record(ThreadId, Schema.Boolean).pipe(
+    Schema.withDecodingDefault(Effect.succeed({})),
+  ),
   projectAgentBrowserAccessOverrides: Schema.Record(ProjectId, Schema.Boolean).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
@@ -1567,6 +1571,7 @@ export const ServerSettingsPatch = Schema.Struct({
   projectSettingsOverrides: Schema.optionalKey(
     Schema.Record(ProjectId, Schema.NullOr(ProjectSettingsOverrides)),
   ),
+  threadAgentTerminalAccess: Schema.optionalKey(Schema.Record(ThreadId, Schema.Boolean)),
   enableAgentDeviceAccess: Schema.optionalKey(Schema.Boolean),
   enableDeviceSupport: Schema.optionalKey(Schema.Boolean),
   deviceOnboardingCompleted: Schema.optionalKey(Schema.Boolean),

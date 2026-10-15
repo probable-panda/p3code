@@ -688,6 +688,55 @@ it.layer(
     }),
   );
 
+  it.effect("reads bounded shared output without starting or changing sessions", () =>
+    Effect.gen(function* () {
+      const { manager, ptyAdapter } = yield* createManager();
+      expect(yield* manager.list("thread-1")).toEqual([]);
+      const missing = yield* Effect.flip(
+        manager.read({ threadId: "thread-1", terminalId: DEFAULT_TERMINAL_ID }),
+      );
+      expect(missing._tag).toBe("TerminalSessionLookupError");
+      expect(ptyAdapter.spawnInputs).toHaveLength(0);
+      yield* manager.open(openInput());
+      yield* manager.open({ ...openInput(), threadId: "other-thread" });
+      const outputReceived = yield* Deferred.make<void>();
+      const unsubscribe = yield* manager.subscribe((event) =>
+        event.type === "output" && event.threadId === "thread-1"
+          ? Deferred.succeed(outputReceived, undefined).pipe(Effect.asVoid)
+          : Effect.void,
+      );
+      yield* Effect.addFinalizer(() => Effect.sync(unsubscribe));
+      ptyAdapter.processes[0]!.emitData("hello world\r\n");
+      yield* Deferred.await(outputReceived);
+      const read = yield* manager.read({
+        threadId: "thread-1",
+        terminalId: DEFAULT_TERMINAL_ID,
+        maxChars: 7,
+      });
+      expect(read.output).toBe("world\r\n");
+      expect(read.truncated).toBe(true);
+      expect(read.unchanged).toBe(false);
+      expect(
+        yield* manager.read({
+          threadId: "thread-1",
+          terminalId: DEFAULT_TERMINAL_ID,
+          afterCursor: read.cursor,
+        }),
+      ).toMatchObject({ output: "", unchanged: true });
+      expect((yield* manager.list("thread-1")).map((session) => session.threadId)).toEqual([
+        "thread-1",
+      ]);
+      expect(ptyAdapter.spawnInputs).toHaveLength(2);
+      expect(ptyAdapter.processes[0]!.resizeCalls).toEqual([]);
+      yield* manager.write({
+        threadId: "thread-1",
+        terminalId: DEFAULT_TERMINAL_ID,
+        data: "pwd\r",
+      });
+      expect(ptyAdapter.processes[0]!.writes).toEqual(["pwd\r"]);
+    }),
+  );
+
   it.effect("forwards write and resize to active pty process", () =>
     Effect.gen(function* () {
       const { manager, ptyAdapter } = yield* createManager();
@@ -1053,6 +1102,17 @@ it.layer(
         data: "\r",
       });
       expect(process.writes).toEqual([]);
+      const error = yield* Effect.flip(
+        manager.write(
+          {
+            threadId: "thread-1",
+            terminalId: DEFAULT_TERMINAL_ID,
+            data: "\r",
+          },
+          { requireRunning: true },
+        ),
+      );
+      expect(error._tag).toBe("TerminalNotRunningError");
     }),
   );
 
