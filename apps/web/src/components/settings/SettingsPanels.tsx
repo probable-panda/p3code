@@ -547,6 +547,9 @@ export function useSettingsRestore(onRestored?: () => void) {
       ...(settings.diffColorScheme !== DEFAULT_UNIFIED_SETTINGS.diffColorScheme
         ? ["Diff colors"]
         : []),
+      ...(settings.messageMinimapEnabled !== DEFAULT_UNIFIED_SETTINGS.messageMinimapEnabled
+        ? ["Message minimap"]
+        : []),
       ...(settings.chatWidth !== DEFAULT_UNIFIED_SETTINGS.chatWidth ? ["Chat width"] : []),
       ...(settings.panelAnimationDurationMs !== DEFAULT_UNIFIED_SETTINGS.panelAnimationDurationMs
         ? ["Panel animations"]
@@ -674,6 +677,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.browserAutoShowFloatingPreview,
       settings.appearanceContrast,
       settings.diffColorScheme,
+      settings.messageMinimapEnabled,
       settings.chatWidth,
       settings.enableAgentBrowserAccess,
       settings.confirmQuit,
@@ -791,6 +795,7 @@ export function useSettingsRestore(onRestored?: () => void) {
     updateSettings({
       appearanceContrast: DEFAULT_UNIFIED_SETTINGS.appearanceContrast,
       diffColorScheme: DEFAULT_UNIFIED_SETTINGS.diffColorScheme,
+      messageMinimapEnabled: DEFAULT_UNIFIED_SETTINGS.messageMinimapEnabled,
       chatWidth: DEFAULT_UNIFIED_SETTINGS.chatWidth,
       timestampFormat: DEFAULT_UNIFIED_SETTINGS.timestampFormat,
       notificationMode: DEFAULT_UNIFIED_SETTINGS.notificationMode,
@@ -1421,6 +1426,32 @@ export function AppearanceSettingsPanel() {
                 updateSettings({ persistComposerContextStrip: Boolean(checked) })
               }
               aria-label="Keep composer context visible in active threads"
+            />
+          }
+        />
+
+        <SettingsRow
+          {...searchableSetting("message-minimap")}
+          description="Show the navigation rail beside messages to jump between turns."
+          resetAction={
+            settings.messageMinimapEnabled !== DEFAULT_UNIFIED_SETTINGS.messageMinimapEnabled ? (
+              <SettingResetButton
+                label="message minimap"
+                onClick={() =>
+                  updateSettings({
+                    messageMinimapEnabled: DEFAULT_UNIFIED_SETTINGS.messageMinimapEnabled,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.messageMinimapEnabled}
+              onCheckedChange={(checked) =>
+                updateSettings({ messageMinimapEnabled: Boolean(checked) })
+              }
+              aria-label="Message minimap"
             />
           }
         />

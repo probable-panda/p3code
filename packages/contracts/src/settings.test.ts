@@ -1184,3 +1184,16 @@ describe("server model preferences", () => {
     });
   });
 });
+
+describe("message minimap settings", () => {
+  it("preserves the minimap for existing settings and persists both toggle values", () => {
+    expect(decodeClientSettings({}).messageMinimapEnabled).toBe(true);
+    for (const messageMinimapEnabled of [false, true]) {
+      const settings = decodeClientSettings({ messageMinimapEnabled });
+      expect(encodeClientSettings(settings).messageMinimapEnabled).toBe(messageMinimapEnabled);
+      expect(decodeClientSettingsPatch({ messageMinimapEnabled })).toEqual({
+        messageMinimapEnabled,
+      });
+    }
+  });
+});

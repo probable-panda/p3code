@@ -508,3 +508,19 @@ it("uses the environment's model preferences after migration, including empty li
   expect(merged.favorites).toEqual([]);
   expect(merged.providerModelPreferences).toEqual({});
 });
+
+describe("message minimap preference", () => {
+  it("keeps the saved preference and persists turning it back on", async () => {
+    persistenceMocks.getClientSettings.mockResolvedValue({
+      ...DEFAULT_CLIENT_SETTINGS,
+      messageMinimapEnabled: false,
+    });
+    await ensureClientSettingsHydrated();
+    expect(getClientSettings().messageMinimapEnabled).toBe(false);
+    await persistClientSettingsPatch({ messageMinimapEnabled: true });
+    expect(persistenceMocks.setClientSettings).toHaveBeenLastCalledWith(
+      expect.objectContaining({ messageMinimapEnabled: true }),
+    );
+    expect(getClientSettings().messageMinimapEnabled).toBe(true);
+  });
+});
