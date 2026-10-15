@@ -64,7 +64,7 @@ fi
 ditto -x -k "$zip" "$stage/verify"
 app="$stage/verify/P3 Code.app"
 codesign --verify --deep --strict "$app"
-codesign -dv "$app" 2>&1 | grep -F 'Authority=Developer ID Application:'
+codesign -dvv "$app" 2>&1 | grep -F 'Authority=Developer ID Application:'
 test "$(plutil -extract CFBundleShortVersionString raw "$app/Contents/Info.plist")" = "$version"
 grep -Fx "repo: p3code" "$app/Contents/Resources/app-update.yml"
 grep -Fx "owner: probable-panda" "$app/Contents/Resources/app-update.yml"
