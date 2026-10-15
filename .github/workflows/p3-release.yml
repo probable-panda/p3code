@@ -33,6 +33,11 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
+          # Vendored references contain orphaned gitlinks that break checkout's credential cleanup.
+          sparse-checkout: |
+            /*
+            !/.repos/
+          sparse-checkout-cone-mode: false
           persist-credentials: true
 
       - name: Test release guards
