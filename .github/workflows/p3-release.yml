@@ -1,0 +1,74 @@
+name: P3 Apple Silicon release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "P3 release version (for example 0.45.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: p3-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.repository == 'probable-panda/p3code' && github.ref == 'refs/heads/p3'
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_VERSION: ${{ inputs.version }}
+      CSC_LINK: ${{ secrets.CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Test release guards
+        run: node --test .github/scripts/p3-release.test.cjs
+
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: false
+
+      - name: Configure signing
+        run: |
+          if [[ -z "$CSC_LINK" || -z "$CSC_KEY_PASSWORD" ]]; then
+            echo 'P3_RELEASE_BUILD_ONLY=1' >> "$GITHUB_ENV"
+            echo 'Signing credentials are absent. This run will retain unsigned artifacts; publish a signed release from a trusted Mac with scripts/p3-release.sh.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [[ -n "$APPLE_API_KEY" ]]; then
+            key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+            printf '%s' "$APPLE_API_KEY" > "$key_path"
+            chmod 600 "$key_path"
+            echo "APPLE_API_KEY=$key_path" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build, verify, and publish
+        run: bash scripts/p3-release.sh "$RELEASE_VERSION"
+
+      - name: Retain release artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: p3-macos-arm64-${{ inputs.version }}
+          path: release/p3-*/*
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Remove notarization key
+        if: always()
+        run: rm -f "$RUNNER_TEMP"/AuthKey_*.p8

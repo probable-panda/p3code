@@ -2127,6 +2127,37 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     assert.notInclude(error.message, secret);
   });
 
+  it.effect(
+    "signs update-capable macOS builds without requesting restricted passkey entitlements",
+    () =>
+      Effect.gen(function* () {
+        const config = yield* createBuildConfig(
+          "mac",
+          "dmg",
+          "0.45.1",
+          true,
+          false,
+          undefined,
+          undefined,
+        );
+        const mac = config.mac as Record<string, unknown>;
+        assert.match(String(mac.sign), /[\\/]scripts[\\/]sign-macos\.ts$/);
+        assert.isUndefined(mac.entitlements);
+        assert.isUndefined(mac.provisioningProfile);
+        assert.deepStrictEqual(config.publish, [
+          { provider: "github", owner: "probable-panda", repo: "p3code", releaseType: "release" },
+        ]);
+      }).pipe(
+        Effect.provide(
+          ConfigProvider.layer(
+            ConfigProvider.fromEnv({
+              env: { T3CODE_DESKTOP_UPDATE_REPOSITORY: "probable-panda/p3code" },
+            }),
+          ),
+        ),
+      ),
+  );
+
   it.effect("adds passkey entitlements and both renderer protocols to signed macOS builds", () =>
     Effect.gen(function* () {
       const config = yield* createBuildConfig("mac", "dmg", "1.2.3", true, false, undefined, {
