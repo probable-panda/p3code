@@ -73,8 +73,9 @@ describe("branding", () => {
 });
 
 describe("branding logic", () => {
-  it("omits Alpha from the app name while retaining Dev and Nightly", () => {
+  it("omits release stages from the app name while retaining Dev and Nightly", () => {
     expect(formatAppDisplayName({ baseName: "P3 Code", stageLabel: "Alpha" })).toBe("P3 Code");
+    expect(formatAppDisplayName({ baseName: "P3 Code", stageLabel: "Beta" })).toBe("P3 Code");
     expect(formatAppDisplayName({ baseName: "P3 Code", stageLabel: "Dev" })).toBe("P3 Code (Dev)");
     expect(formatAppDisplayName({ baseName: "P3 Code", stageLabel: "Nightly" })).toBe(
       "P3 Code (Nightly)",

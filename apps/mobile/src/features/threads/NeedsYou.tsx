@@ -6,8 +6,8 @@ import {
 import { useState } from "react";
 import { Modal, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AppText } from "../../components/AppText";
-import { MaterialButton } from "../../components/MaterialButton";
+import { AppText } from "../../components/ui/AppText";
+import { Button } from "../../components/ui/Button";
 import { environmentCatalog } from "../../connection/catalog";
 import { useProjects } from "../../state/entities";
 import { environmentShell } from "../../state/shell";
@@ -38,11 +38,7 @@ export function NeedsYou({
       className="border-t border-border bg-screen px-4 pt-2"
       style={{ paddingBottom: Math.max(insets.bottom, 8) }}
     >
-      <MaterialButton
-        label={`Needs you · ${threads.length}`}
-        onPress={() => setOpen(true)}
-        fullWidth
-      />
+      <Button label={`Needs you · ${threads.length}`} onPress={() => setOpen(true)} fullWidth />
       <Modal
         visible={open}
         animationType="slide"
@@ -57,7 +53,7 @@ export function NeedsYou({
             <AppText accessibilityRole="header" className="text-lg font-t3-semibold">
               Waiting for your answer
             </AppText>
-            <MaterialButton label="Close" tone="text" onPress={() => setOpen(false)} />
+            <Button label="Close" tone="text" onPress={() => setOpen(false)} />
           </View>
           <ScrollView>
             {threads.map((thread) => {
