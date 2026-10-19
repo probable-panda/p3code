@@ -30,3 +30,15 @@ running continue, and output already read stays in the conversation. You and the
 agent share the keyboard, so avoid typing into a session while the agent uses it.
 Terminal output can include secrets; enable sharing only for output you want the
 agent to receive.
+
+## fish
+
+T3 Code starts fish with `no-query-term`, avoiding startup waits for terminal
+replies. This disables optional fish features that depend on those replies.
+T3 Code's exported `fish_features` also hides any universal flags you set with
+`set -U fish_features`.
+
+To preserve those flags or enable queries with `query-term`, include them in
+`fish_features` in the environment that launches T3 Code. A shell export applies
+when you launch T3 Code from that shell; it does not configure a desktop app
+launched from the Dock or Finder. Enabling queries can restore the startup wait.
