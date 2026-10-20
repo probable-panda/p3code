@@ -135,6 +135,12 @@ export class OpenCodeReplayController {
   get finished(): boolean {
     return this.cursor >= this.transcript.entries.length;
   }
+
+  recordsOutbound(type: string): boolean {
+    return this.transcript.entries.some(
+      (entry) => entry.type === "expect_outbound" && frameRecord(entry.frame)?.type === type,
+    );
+  }
   private readonly waiters = new Set<() => void>();
   private failure: unknown = null;
   private readonly transcript: ProviderReplayTranscript;

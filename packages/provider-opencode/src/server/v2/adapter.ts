@@ -19,6 +19,7 @@ import {
   type OrchestrationV2ExecutionNode,
   type OrchestrationV2ProviderCapabilities,
   type OrchestrationV2ProviderSession,
+  OrchestrationV2ProviderGoal,
   type OrchestrationV2ProviderThread,
   type OrchestrationV2ProviderTurn,
   type OrchestrationV2RuntimeRequest,
@@ -76,6 +77,7 @@ import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter"
 import { turnScopedSelectionTransition } from "@t3tools/provider-core/server/selectionTransition";
 import { OPENCODE_PROVIDER, openCodePermissionRequestKind } from "../adapter.ts";
 import { openCodeToolTurnItem } from "../toolItems.ts";
+import * as ContinuationGoal from "./continuationGoal.ts";
 
 const OpenCode2ProviderCapabilities = {
   sessions: {
@@ -256,6 +258,10 @@ interface OpenBlock {
 
 interface ThreadState {
   readonly sessionId: string;
+  goalRefresh: number;
+  goalApplied: number;
+  goalReading: boolean;
+  goalDirty: boolean;
   providerThread: OrchestrationV2ProviderThread;
   readonly providerTurns: Map<string, OrchestrationV2ProviderTurn>;
   active: ActiveTurn | undefined;
@@ -725,6 +731,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
     const busy = new Set<string>();
     const pending = new Map<RuntimeRequestId, PendingRequest>();
     const lock = yield* Semaphore.make(1);
+    const goalReads = yield* Semaphore.make(4);
     const clearing = new Map<string, Deferred.Deferred<void>>();
     const stagedReverts = new Set<string>();
     const sessionGates = yield* KeyedLock.make<string>();
@@ -737,6 +744,71 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       };
     const emit = (event: ProviderAdapter.ProviderAdapterV2Event) =>
       Queue.offer(events, event).pipe(Effect.asVoid);
+    const goalsEqual = Schema.toEquivalence(Schema.NullOr(OrchestrationV2ProviderGoal));
+    const refreshGoal = Effect.fnUntraced(function* (state: ThreadState, notify = true) {
+      const revision = ++state.goalRefresh;
+      const directory = state.directory;
+      const snapshot = yield* client.rpc
+        .call({
+          rpcID: ContinuationGoal.RPC_ID,
+          method: "get",
+          location: { directory: state.directory },
+          input: { sessionID: state.sessionId },
+        })
+        .pipe(
+          Effect.flatMap(({ output }) => ContinuationGoal.decodeSnapshot(output)),
+          Effect.map((snapshot) => (snapshot.sessionID === state.sessionId ? snapshot : undefined)),
+          Effect.catchTags({
+            RpcError: (error) =>
+              error.type === "rpc.unavailable" || error.type === "rpc.method_not_found"
+                ? Effect.succeed({ sessionID: state.sessionId, goal: null })
+                : Effect.fail(error),
+          }),
+          Effect.timeout("2 seconds"),
+          Effect.catch(() =>
+            Effect.logDebug("Could not refresh the optional OpenCode continuation goal.").pipe(
+              Effect.as(undefined),
+            ),
+          ),
+        );
+      const updatedAt = yield* DateTime.now;
+      if (
+        snapshot === undefined ||
+        threads.get(state.sessionId) !== state ||
+        revision < state.goalApplied ||
+        directory !== state.directory
+      )
+        return;
+      state.goalApplied = revision;
+      const goal = ContinuationGoal.providerGoal(snapshot);
+      if (goalsEqual(state.providerThread.goal ?? null, goal)) return;
+      state.providerThread = { ...state.providerThread, goal, updatedAt };
+      if (notify)
+        yield* emit({
+          type: "provider_thread.updated",
+          driver,
+          providerThread: state.providerThread,
+        });
+    });
+    const scheduleGoalRefresh = (state: ThreadState) =>
+      Effect.gen(function* () {
+        state.goalDirty = true;
+        if (state.goalReading) return;
+        state.goalReading = true;
+        yield* Effect.gen(function* () {
+          while (state.goalDirty) {
+            state.goalDirty = false;
+            yield* goalReads.withPermit(refreshGoal(state));
+          }
+        }).pipe(
+          Effect.ensuring(
+            Effect.sync(() => {
+              state.goalReading = false;
+            }),
+          ),
+          Effect.forkIn(sessionScope),
+        );
+      });
     const ownerOf = (sessionId: string) => childOwners.get(sessionId) ?? threads.get(sessionId);
     const markUnsettled = (state: ThreadState) => {
       state.unsettled = true;
@@ -750,6 +822,10 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       subagent: ThreadState["subagent"],
     ): ThreadState => ({
       sessionId,
+      goalRefresh: 0,
+      goalApplied: 0,
+      goalReading: false,
+      goalDirty: false,
       providerThread,
       providerTurns: new Map(),
       active: undefined,
@@ -2194,6 +2270,19 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
 
     const handleEvent = Effect.fnUntraced(function* (event: OpenCode2Client.OpenCode2StreamEvent) {
       const sessionId = sessionOfEvent(event);
+      if (event.type === ContinuationGoal.READY_EVENT) {
+        for (const state of threads.values()) {
+          if (event.location?.directory === state.directory) yield* scheduleGoalRefresh(state);
+        }
+        return;
+      }
+      if (event.type === ContinuationGoal.CHANGED_EVENT) {
+        const state = sessionId === undefined ? undefined : threads.get(sessionId);
+        if (state !== undefined && event.location?.directory === state.directory) {
+          yield* scheduleGoalRefresh(state);
+        }
+        return;
+      }
       const cleared = sessionId === undefined ? undefined : clearing.get(sessionId);
       if (cleared !== undefined) {
         if (event.type === "unreadable.execution.ended" || executionEnd(event.type)) {
@@ -2462,6 +2551,9 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
      * still the previous execution's, so no `idle` means the turn was interrupted.
      */
     const reconcile = Effect.gen(function* () {
+      // The event subscription is accepted before this read: plugin events are
+      // volatile, so idle goals also need a snapshot after every reconnect.
+      for (const state of threads.values()) yield* scheduleGoalRefresh(state);
       // A subagent's turn ends before the turn that waits on it, so the
       // deepest sessions are read back first.
       const running = [...threads]
@@ -2902,6 +2994,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       return {
         providerThread: {
           ...providerThread,
+          ...(state === undefined ? {} : { goal: state.providerThread.goal ?? null }),
           providerSessionId: input.providerSessionId,
           nativeConversationHeadRef: lastUser === undefined ? null : ref(lastUser, "weak"),
           status: "idle" as const,
@@ -3359,6 +3452,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
             directory,
           );
           state.policy = policy;
+          yield* refreshGoal(state, false);
           return state.providerThread;
         }).pipe(
           Effect.mapError((cause) =>
@@ -3395,6 +3489,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
               directory: AbsolutePath.make(cwd),
             });
           }
+          yield* refreshGoal(state, false);
           return state.providerThread;
         }).pipe(
           Effect.mapError((cause) =>
@@ -3910,6 +4005,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
               directory: AbsolutePath.make(cwd),
             });
           }
+          yield* refreshGoal(state, false);
           return state.providerThread;
         }).pipe(
           exclusive(forkInput.sourceProviderThread),

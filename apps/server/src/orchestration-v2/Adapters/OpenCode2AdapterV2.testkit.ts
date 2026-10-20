@@ -57,6 +57,13 @@ const operationOf = (
   if (method === "POST" && path === "/api/session") return { type: "session.create", input: body };
   if (method === "GET" && path === "/api/session/active") return { type: "session.active" };
   if (method === "GET" && path === "/api/command") return { type: "command.list", input: query };
+  const rpc = /^\/api\/rpc\/([^/]+)\/([^/]+)$/.exec(path);
+  if (method === "POST" && rpc !== null) {
+    return {
+      type: "rpc.call",
+      input: { rpcID: rpc[1], method: rpc[2], ...query, ...(body as object) },
+    };
+  }
   const mcp = /^\/api\/experimental\/mcp\/([^/]+)$/.exec(path);
   if (mcp !== null && method === "PUT") {
     return { type: "mcp.add", input: { server: mcp[1], ...query, ...(body as object) } };
@@ -148,6 +155,21 @@ const replayHttpClient = (
         // The event stream and requests are separate connections: a request
         // is matched only once what was recorded before it was delivered.
         if (operation.type !== "event.subscribe") await controller.untilInboundDelivered();
+        // Old recordings have no optional continuation plugin. New goal tests
+        // record its RPC explicitly; all other scenarios exercise its absence.
+        if (operation.type === "rpc.call" && !controller.recordsOutbound("rpc.call")) {
+          return new Response(
+            encodeJson({
+              _tag: "RpcError",
+              type: "rpc.unavailable",
+              message: "Plugin not installed",
+            }),
+            {
+              status: 400,
+              headers: { "content-type": "application/json" },
+            },
+          );
+        }
         await controller.expectOutbound(operation);
         if (operation.type === "event.subscribe") {
           controller.exited = false;

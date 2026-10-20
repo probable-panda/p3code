@@ -398,6 +398,230 @@ const history = {
 };
 
 it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
+  const goalRead = (goal: unknown, sessionID = SESSION): ReadonlyArray<ProviderReplayEntry> => [
+    out("rpc.call", {
+      rpcID: "mimi.continuation",
+      method: "get",
+      "location[directory]": WORK,
+      input: { sessionID },
+    }),
+    reply("rpc.call", { output: { sessionID, goal } }),
+  ];
+  const goal = (state = "active", detail = "") => ({
+    goalID: "stable-goal",
+    objective: "Finish the fixture",
+    state,
+    detail,
+  });
+  const goalChanged = (directory = WORK, sessionID = SESSION): ProviderReplayEntry => ({
+    type: "emit_inbound",
+    frame: {
+      type: "sdk.event",
+      event: {
+        id: "evt_goal",
+        created: 1,
+        type: "rpc.mimi.continuation.changed",
+        location: { directory },
+        data: { sessionID },
+      },
+    },
+  });
+  const goals = (runtime: ProviderAdapter.ProviderAdapterV2SessionRuntime, count: number) =>
+    runtime.events.pipe(
+      Stream.filter(
+        (
+          event,
+        ): event is Extract<
+          ProviderAdapter.ProviderAdapterV2Event,
+          { type: "provider_thread.updated" }
+        > => event.type === "provider_thread.updated",
+      ),
+      Stream.map((event) => event.providerThread.goal ?? null),
+      Stream.take(count),
+      Stream.runCollect,
+    );
+
+  it.effect(
+    "projects plugin goals without an active turn, including waiting, pause, blocked, completion and clear",
+    () =>
+      Effect.gen(function* () {
+        const { runtime, thread } = yield* resumed([
+          ...goalRead(goal()),
+          goalChanged("/other/workspace"),
+          goalChanged(WORK, "ses_other"),
+          goalChanged(),
+          ...goalRead(goal("waiting", "Waiting for a child")),
+          goalChanged(),
+          ...goalRead(goal("paused", "Stopped")),
+          goalChanged(),
+          ...goalRead(goal("blocked", "Need operator input")),
+          goalChanged(),
+          ...goalRead(goal("active")),
+          goalChanged(),
+          ...goalRead(goal("complete", "Verified fixture")),
+          goalChanged(),
+          ...goalRead(null),
+        ]);
+        assert.deepEqual(thread.goal, { objective: "Finish the fixture", status: "active" });
+        assert.deepEqual(yield* goals(runtime, 6), [
+          { objective: "Finish the fixture", status: "active", lastCheck: "Waiting for a child" },
+          { objective: "Finish the fixture", status: "paused", lastCheck: "Stopped" },
+          { objective: "Finish the fixture", status: "blocked", lastCheck: "Need operator input" },
+          { objective: "Finish the fixture", status: "active" },
+          { objective: "Finish the fixture", status: "complete", lastCheck: "Verified fixture" },
+          null,
+        ]);
+      }).pipe(Effect.scoped),
+  );
+
+  it.effect("refreshes an idle goal after reconnect even when its completion event was lost", () =>
+    Effect.gen(function* () {
+      const { runtime } = yield* resumed([
+        ...goalRead(goal()),
+        { type: "runtime_exit", status: "success" },
+        out("event.subscribe"),
+        ...goalRead(goal("complete", "Finished while disconnected")),
+      ]);
+      assert.deepEqual(yield* goals(runtime, 1), [
+        {
+          objective: "Finish the fixture",
+          status: "complete",
+          lastCheck: "Finished while disconnected",
+        },
+      ]);
+    }).pipe(Effect.scoped),
+  );
+
+  it.effect(
+    "does not accept malformed or cross-session snapshots and can recover on the next change",
+    () =>
+      Effect.gen(function* () {
+        const { runtime } = yield* resumed([
+          ...goalRead(goal()),
+          goalChanged(),
+          out("rpc.call", "<any>"),
+          reply("rpc.call", { output: { sessionID: "ses_other", goal: goal("complete") } }),
+          goalChanged(),
+          ...goalRead({ ...goal(), state: "invented" }),
+          goalChanged(),
+          ...goalRead(goal("complete")),
+        ]);
+        assert.deepEqual(yield* goals(runtime, 1), [
+          { objective: "Finish the fixture", status: "complete" },
+        ]);
+      }).pipe(Effect.scoped),
+  );
+
+  it.effect("refreshes a goal when the plugin reloads without starting any execution", () =>
+    Effect.gen(function* () {
+      const { runtime, thread } = yield* resumed([
+        ...goalRead(goal()),
+        {
+          type: "emit_inbound",
+          frame: {
+            type: "sdk.event",
+            event: {
+              id: "evt_ready",
+              created: 1,
+              type: "rpc.mimi.continuation.ready",
+              location: { directory: WORK },
+              data: {},
+            },
+          },
+        },
+        ...goalRead(goal("paused", "Reloaded; use /goal resume.")),
+      ]);
+      assert.equal(thread.goal?.status, "active");
+      assert.deepEqual(yield* goals(runtime, 1), [
+        {
+          objective: "Finish the fixture",
+          status: "paused",
+          lastCheck: "Reloaded; use /goal resume.",
+        },
+      ]);
+    }).pipe(Effect.scoped),
+  );
+
+  it.effect("keeps the last goal on RPC failure and recovers on the next invalidation", () =>
+    Effect.gen(function* () {
+      const { runtime } = yield* resumed([
+        ...goalRead(goal()),
+        goalChanged(),
+        out("rpc.call", "<any>"),
+        reply("rpc.call", {
+          status: 500,
+          body: { _tag: "RpcInternalError", type: "rpc.internal", message: "Fixture failure" },
+        }),
+        goalChanged(),
+        ...goalRead(goal("complete")),
+      ]);
+      assert.deepEqual(yield* goals(runtime, 1), [
+        { objective: "Finish the fixture", status: "complete" },
+      ]);
+    }).pipe(Effect.scoped),
+  );
+
+  it.effect("a hung optional goal RPC cannot hold up an execution terminal event", () =>
+    Effect.gen(function* () {
+      const { runtime, thread } = yield* resumed([
+        ...goalRead(goal()),
+        out("session.prompt", { sessionID: SESSION, text: "<any>" }),
+        promptAccepted,
+        goalChanged(),
+        out("rpc.call", "<any>"),
+        reply("rpc.call", "<hang>"),
+        event("session.execution.succeeded", { sessionID: SESSION }),
+      ]);
+      const terminal = yield* terminalOf(runtime).pipe(Effect.forkScoped);
+      yield* runtime.startTurn(turnInput(thread));
+      assert.equal((yield* Fiber.join(terminal))?.status, "completed");
+    }).pipe(Effect.scoped),
+  );
+
+  it.effect.each(["resume", "clear"] as const)(
+    "the goal banner's %s command reaches the workspace plugin and updates its projection",
+    (control) =>
+      Effect.gen(function* () {
+        const { runtime, thread } = yield* resumed([
+          ...goalRead(goal("paused")),
+          out("command.list", "<any>"),
+          reply("command.list", { location: { directory: WORK }, data: [{ name: "goal" }] }),
+          out("message.list", { sessionID: SESSION, order: "desc", limit: "1" }),
+          reply("message.list", { data: [], cursor: {} }),
+          out("session.command", { sessionID: SESSION, name: "goal", text: control }),
+          reply("session.command", null),
+          goalChanged(),
+          ...goalRead(control === "resume" ? goal("active") : null),
+          event("session.execution.succeeded", { sessionID: SESSION }),
+        ]);
+        let terminal = false;
+        let updated = false;
+        const settled = yield* runtime.events.pipe(
+          Stream.tap((event) =>
+            Effect.sync(() => {
+              if (event.type === "turn.terminal") terminal = true;
+              if (
+                event.type === "provider_thread.updated" &&
+                (control === "resume"
+                  ? event.providerThread.goal?.status === "active"
+                  : event.providerThread.goal === null)
+              )
+                updated = true;
+            }),
+          ),
+          Stream.takeUntil(() => terminal && updated),
+          Stream.runDrain,
+          Effect.forkScoped,
+        );
+        yield* runtime.startTurn({
+          ...turnInput(thread),
+          message: { ...turnInput(thread).message, text: `/goal ${control}` },
+        });
+        yield* Fiber.join(settled);
+        assert.isTrue(terminal && updated);
+      }).pipe(Effect.scoped),
+  );
+
   it.effect("switches the session's model and variant before a turn that changed them", () =>
     Effect.gen(function* () {
       const { runtime, thread } = yield* resumed([
