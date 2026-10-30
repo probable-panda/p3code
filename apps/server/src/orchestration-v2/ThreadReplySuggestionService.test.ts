@@ -15,7 +15,6 @@ import {
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 import * as ServerSettings from "../serverSettings.ts";
 import * as TextGeneration from "../textGeneration/TextGeneration.ts";
 import * as Projects from "./ProjectStore.ts";
@@ -124,22 +123,20 @@ function harness(projection: OrchestrationV2ThreadProjection) {
         }),
         Layer.mock(Projects.ProjectStoreV2)({
           get: () =>
-            Effect.succeed(
-              Option.some({
-                projectId,
-                title: "Project",
-                workspaceRoot: "/repo",
-                defaultModelSelection: modelSelection,
-                defaultThreadEnvMode: null,
-                autoPull: false,
-                faviconPath: null,
-                projectIcon: null,
-                scripts: [],
-                createdAt: "2026-10-07T12:00:00Z",
-                updatedAt: "2026-10-07T12:00:00Z",
-                deletedAt: null,
-              }),
-            ),
+            Effect.succeedSome({
+              projectId,
+              title: "Project",
+              workspaceRoot: "/repo",
+              defaultModelSelection: modelSelection,
+              defaultThreadEnvMode: null,
+              autoPull: false,
+              faviconPath: null,
+              projectIcon: null,
+              scripts: [],
+              createdAt: "2026-10-07T12:00:00Z",
+              updatedAt: "2026-10-07T12:00:00Z",
+              deletedAt: null,
+            }),
         }),
         Layer.mock(TextGeneration.TextGeneration)({ generateReplySuggestion }),
         ServerSettings.layerTest({ textGenerationModelSelection: modelSelection }),

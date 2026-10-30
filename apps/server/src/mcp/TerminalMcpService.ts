@@ -44,60 +44,63 @@ const make = Effect.gen(function* () {
   const threads = yield* ThreadManagement.ThreadManagementService;
   const executor = yield* ThreadCommandExecutor.ThreadCommandExecutor;
 
-  const withAccess = <A>(
+  const withAccess = Effect.fn("TerminalMcpService.withAccess")(function* <A>(
     scope: Scope,
     writing: boolean,
     use: (threadId: ThreadId) => Effect.Effect<A, TerminalError>,
-  ) =>
-    Effect.gen(function* () {
-      const { thread: callerThread } = yield* McpInvocationContext.requireThreadScope(
-        scope,
-        "Terminal access",
-      );
-      const operation = settings
-        .withSettingsSnapshot((current) =>
-          Effect.gen(function* () {
-            if (current.threadAgentTerminalAccess[callerThread.threadId] !== true) {
-              return yield* new OrchestratorMcpFailure({
-                code: "capability_denied",
-                message:
-                  "Agent terminal access is off for this thread. The user can enable it in the terminal panel.",
-              });
-            }
-            const caller = yield* loadCaller().pipe(
-              Effect.provideService(McpInvocationContext.McpInvocationContext, scope),
-              Effect.provideService(ThreadManagement.ThreadManagementService, threads),
+  ) {
+    const { thread: callerThread } = yield* McpInvocationContext.requireThreadScope(
+      scope,
+      "Terminal access",
+    );
+    const operation = settings
+      .withSettingsSnapshot((current) =>
+        Effect.gen(function* () {
+          if (current.threadAgentTerminalAccess[callerThread.threadId] !== true) {
+            return yield* new OrchestratorMcpFailure({
+              code: "capability_denied",
+              message:
+                "Agent terminal access is off for this thread. The user can enable it in the terminal panel.",
+            });
+          }
+          const caller = yield* loadCaller().pipe(
+            Effect.provideService(McpInvocationContext.McpInvocationContext, scope),
+            Effect.provideService(ThreadManagement.ThreadManagementService, threads),
+          );
+          yield* assertLiveCaller(caller);
+          if (writing)
+            yield* assertFullAccess(
+              caller,
+              "Terminal input requires full-access mode outside Plan mode.",
             );
-            yield* assertLiveCaller(caller);
-            if (writing)
-              yield* assertFullAccess(
-                caller,
-                "Terminal input requires full-access mode outside Plan mode.",
-              );
-            return yield* use(callerThread.threadId).pipe(
-              Effect.mapError(
-                (error) =>
-                  new OrchestratorMcpFailure({
-                    code: "invalid_request",
-                    message: error.message,
-                  }),
-              ),
-            );
-          }),
-        )
-        .pipe(Effect.catchTags({ ServerSettingsError: () => Effect.fail(unavailable()) }));
-      // Serialize input with mode changes, and hold the settings grant until input is sent.
-      return yield* writing ? executor.withLock(callerThread.threadId, operation) : operation;
-    });
+          return yield* use(callerThread.threadId).pipe(
+            Effect.mapError(
+              (error) =>
+                new OrchestratorMcpFailure({
+                  code: "invalid_request",
+                  message: error.message,
+                }),
+            ),
+          );
+        }),
+      )
+      .pipe(Effect.catchTags({ ServerSettingsError: () => Effect.fail(unavailable()) }));
+    // Serialize input with mode changes, and hold the settings grant until input is sent.
+    return yield* writing ? executor.withLock(callerThread.threadId, operation) : operation;
+  });
 
   return TerminalMcpService.of({
-    list: (scope) => withAccess(scope, false, (threadId) => terminals.list(threadId)),
-    read: (scope, input) =>
+    list: Effect.fn("TerminalMcpService.list")((scope) =>
+      withAccess(scope, false, (threadId) => terminals.list(threadId)),
+    ),
+    read: Effect.fn("TerminalMcpService.read")((scope, input) =>
       withAccess(scope, false, (threadId) => terminals.read({ ...input, threadId })),
-    write: (scope, input) =>
+    ),
+    write: Effect.fn("TerminalMcpService.write")((scope, input) =>
       withAccess(scope, true, (threadId) =>
         terminals.write({ ...input, threadId }, { requireRunning: true }),
       ),
+    ),
   });
 });
 
