@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /** A response can offer one completion, which expires on editing or changing threads. */
 export function useReplySuggestion(input: {
@@ -13,6 +13,7 @@ export function useReplySuggestion(input: {
     null,
   );
   const [dismissed, setDismissed] = useState<string | null>(null);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Observe the pending generation RPC only while this composer context is mounted.
   useEffect(() => {
     if (!key || !enabled) return;
     if (pending.current?.key !== key || pending.current.revision !== revision) {
@@ -31,7 +32,7 @@ export function useReplySuggestion(input: {
       stale = true;
     };
   }, [key, enabled, request, revision]);
-  const dismiss = useCallback(() => setDismissed(key), [key]);
+  const dismiss = () => setDismissed(key);
   return {
     reply:
       enabled && result?.key === key && result.revision === revision && dismissed !== key
