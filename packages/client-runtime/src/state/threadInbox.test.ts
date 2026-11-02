@@ -9,10 +9,9 @@ import {
   sortWorkingThreadsBySend,
 } from "./threadInbox.ts";
 import { Atom, AtomRegistry } from "effect/reactivity";
-import * as Option from "effect/Option";
 import { presentThreadShell } from "./models.ts";
 import { v2ThreadShell } from "./orchestrationV2TestFixtures.ts";
-import type { EnvironmentShellState } from "./shell.ts";
+import { EMPTY_SHELL_STATE, type EnvironmentShellState } from "./shell.ts";
 
 const environmentId = EnvironmentId.make("environment-1");
 
@@ -27,9 +26,8 @@ describe("waiting questions", () => {
     const threadsAtom = Atom.make([waiting, remoteWaiting]);
     const shellStateAtom = Atom.family((_id: EnvironmentId) =>
       Atom.make<EnvironmentShellState>({
-        snapshot: Option.none(),
+        ...EMPTY_SHELL_STATE,
         status: "live",
-        error: Option.none(),
       }),
     );
     const questions = createWaitingQuestionThreadsAtom({ threadsAtom, shellStateAtom });
@@ -53,15 +51,13 @@ describe("waiting questions", () => {
       expect(firstClient.get(questions).map((thread) => thread.environmentId)).toEqual([remote]);
       expect(secondClient.get(questions)).toEqual(firstClient.get(questions));
       firstClient.set(shellStateAtom(remote), {
-        snapshot: Option.none(),
+        ...EMPTY_SHELL_STATE,
         status: "cached",
-        error: Option.none(),
       });
       expect(firstClient.get(questions)).toEqual([]);
       firstClient.set(shellStateAtom(remote), {
-        snapshot: Option.none(),
+        ...EMPTY_SHELL_STATE,
         status: "live",
-        error: Option.none(),
       });
       expect(firstClient.get(questions)).toHaveLength(1);
     } finally {
@@ -92,9 +88,8 @@ describe("waiting questions", () => {
       threadsAtom,
       shellStateAtom: () =>
         Atom.make<EnvironmentShellState>({
-          snapshot: Option.none(),
+          ...EMPTY_SHELL_STATE,
           status: "live",
-          error: Option.none(),
         }),
     });
     const registry = AtomRegistry.make();

@@ -12,7 +12,7 @@ import { Button } from "../ui/button";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 
 const waitingQuestionsAtom = createWaitingQuestionThreadsAtom({
-  threadsAtom: environmentThreadShells.threadShellsAtom,
+  threadsAtom: environmentThreadShells.visibleThreadShellsAtom,
   shellStateAtom: environmentShell.stateValueAtom,
 });
 

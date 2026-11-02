@@ -14,7 +14,7 @@ import { environmentShell } from "../../state/shell";
 import { environmentThreadShells } from "../../state/threads";
 
 const waitingQuestionsAtom = createWaitingQuestionThreadsAtom({
-  threadsAtom: environmentThreadShells.threadShellsAtom,
+  threadsAtom: environmentThreadShells.visibleThreadShellsAtom,
   shellStateAtom: environmentShell.stateValueAtom,
 });
 
