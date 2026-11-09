@@ -31,7 +31,6 @@ import {
   buildCommitMessagePrompt,
   buildPrContentPrompt,
   buildThreadTitlePrompt,
-  buildReplySuggestionPrompt,
 } from "@t3tools/provider-core/server/textGenerationPrompts";
 import {
   sanitizeCommitSubject,
@@ -351,18 +350,6 @@ export const makeMuseTextGeneration = Effect.fn("makeMuseTextGeneration")(functi
     });
     return { title: sanitizeThreadTitle(generated.title) };
   });
-  const generateReplySuggestion: ProviderTextGeneration["generateReplySuggestion"] = Effect.fn(
-    "MuseTextGeneration.generateReplySuggestion",
-  )(function* (input) {
-    const generated = yield* runMuseJson({
-      operation: "generateReplySuggestion",
-      ...buildReplySuggestionPrompt(input.message),
-      modelSelection: input.modelSelection,
-    });
-    const reply = generated.reply.trim().replace(/\s+/g, " ");
-    return { reply: reply.length <= 160 ? reply : "" };
-  });
-  // Muse runs in an empty read-only directory and cannot be pointed at a checkout to read.
   const generateTranscriptionPostProcessing: ProviderTextGeneration["generateTranscriptionPostProcessing"] =
     Effect.fn("MuseTextGeneration.generateTranscriptionPostProcessing")(function* (input) {
       return yield* runMuseJson({
@@ -375,7 +362,6 @@ export const makeMuseTextGeneration = Effect.fn("makeMuseTextGeneration")(functi
   const generateReviewGuide: ProviderTextGeneration["generateReviewGuide"] = () =>
     Effect.fail(investigationUnsupported("generateReviewGuide", "Muse Code"));
   return {
-    generateReplySuggestion,
     generateCommitMessage,
     generatePrContent,
     generateBranchName,

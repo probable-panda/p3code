@@ -31,6 +31,9 @@ agent share the keyboard, so avoid typing into a session while the agent uses it
 Terminal output can include secrets; enable sharing only for output you want the
 agent to receive.
 
+On iPhone and iPad, long-press the terminal to paste or to choose Select Text.
+Select Text shows the visible output, where you can copy text or tap a link.
+
 ## fish
 
 T3 Code starts fish with `no-query-term`, avoiding startup waits for terminal

@@ -67,16 +67,6 @@ export interface ThreadTitleGenerationInput {
   modelSelection: ModelSelection;
 }
 
-export interface ReplySuggestionGenerationInput {
-  cwd: string;
-  message: string;
-  modelSelection: ModelSelection;
-}
-
-export interface ReplySuggestionGenerationResult {
-  reply: string;
-}
-
 export interface ThreadTitleGenerationResult {
   title: string;
   needsRefinement?: boolean | undefined;
@@ -118,13 +108,6 @@ export interface TranscriptionPostProcessingResult {
 }
 
 export interface ProviderTextGeneration {
-  readonly generateReplySuggestion: (
-    input: ReplySuggestionGenerationInput,
-  ) => Effect.Effect<ReplySuggestionGenerationResult, TextGenerationError>;
-
-  /**
-   * Generate a commit message from staged change context.
-   */
   readonly generateTranscriptionPostProcessing: (
     input: TranscriptionPostProcessingInput,
   ) => Effect.Effect<TranscriptionPostProcessingResult, TextGenerationError>;
