@@ -67,7 +67,12 @@ vi.mock("../state/use-atom-command", () => ({
 vi.mock("../state/server", async () => {
   const Atom = await import("effect/reactivity/Atom");
   const config = Atom.make(null);
-  return { serverEnvironment: { configValueAtom: () => config } };
+  return {
+    serverEnvironment: {
+      configValueAtom: () => config,
+      updateSettings: { permissionAtom: () => Atom.make(false) },
+    },
+  };
 });
 vi.mock("../state/terminal", () => ({ terminalEnvironment: { write: {}, resize: {} } }));
 vi.mock("../state/preview", () => ({ previewEnvironment: { open: {} } }));
