@@ -2,7 +2,7 @@ name: P3 upstream sync
 
 on:
   schedule:
-    - cron: "37 9 * * *"
+    - cron: "37 9 * * 1,4"
   workflow_dispatch:
 
 permissions:
