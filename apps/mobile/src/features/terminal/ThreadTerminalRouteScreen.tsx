@@ -563,18 +563,15 @@ function ThreadTerminal(props: {
     )
       return;
     setSavingAgentAccess(true);
-    try {
-      await updateSettings({
-        environmentId: routeEnvironmentId,
-        input: {
-          patch: {
-            threadAgentTerminalAccess: { [routeThreadId]: !agentTerminalAccess },
-          },
+    await updateSettings({
+      environmentId: routeEnvironmentId,
+      input: {
+        patch: {
+          threadAgentTerminalAccess: { [routeThreadId]: !agentTerminalAccess },
         },
-      });
-    } finally {
-      setSavingAgentAccess(false);
-    }
+      },
+    });
+    setSavingAgentAccess(false);
   };
   const hostOs =
     routeEnvironmentId === null
