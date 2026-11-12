@@ -33,7 +33,7 @@ if [[ ${P3_RELEASE_BUILD_ONLY:-0} != 1 ]]; then
     exit 1
   }
 fi
-stage=$(mktemp -d "${TMPDIR:-/tmp}/p3-release.XXXXXX")
+stage=$(mktemp -d "$(dirname "$repo_root")/p3-release.XXXXXX")
 checkout="$stage/source"
 cleanup() {
   git -C "$repo_root" worktree remove --force "$checkout" >/dev/null 2>&1 || true
