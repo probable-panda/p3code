@@ -98,7 +98,7 @@ const make = Effect.gen(function* () {
     ),
     write: Effect.fn("TerminalMcpService.write")((scope, input) =>
       withAccess(scope, true, (threadId) =>
-        terminals.write({ ...input, threadId }, { requireRunning: true }),
+        terminals.write({ ...input, threadId }, undefined, { requireRunning: true }),
       ),
     ),
   });

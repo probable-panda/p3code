@@ -1,3 +1,4 @@
+import { useGT } from "gt-react-native";
 import { useAtomValue } from "@effect/atom-react";
 import {
   createWaitingQuestionThreadsAtom,
@@ -23,6 +24,7 @@ export function NeedsYou({
 }: {
   readonly onSelectThread: (thread: WaitingQuestionThread) => void;
 }) {
+  const gt = useGT();
   const threads = useAtomValue(waitingQuestionsAtom);
   const projects = useProjects();
   const catalog = useAtomValue(environmentCatalog.catalogValueAtom);
@@ -38,7 +40,11 @@ export function NeedsYou({
       className="border-t border-border bg-screen px-4 pt-2"
       style={{ paddingBottom: Math.max(insets.bottom, 8) }}
     >
-      <Button label={`Needs you · ${threads.length}`} onPress={() => setOpen(true)} fullWidth />
+      <Button
+        label={gt("Needs you · {count}", { count: threads.length })}
+        onPress={() => setOpen(true)}
+        fullWidth
+      />
       <Modal
         visible={open}
         animationType="slide"
@@ -51,9 +57,9 @@ export function NeedsYou({
         >
           <View className="mb-4 flex-row items-center justify-between">
             <AppText accessibilityRole="header" className="text-lg font-t3-semibold">
-              Waiting for your answer
+              {gt("Waiting for your answer")}
             </AppText>
-            <Button label="Close" tone="text" onPress={() => setOpen(false)} />
+            <Button label={gt("Close")} tone="text" onPress={() => setOpen(false)} />
           </View>
           <ScrollView>
             {threads.map((thread) => {
@@ -71,10 +77,10 @@ export function NeedsYou({
                     onSelectThread(thread);
                   }}
                 >
-                  <AppText numberOfLines={2}>{thread.title || "Untitled thread"}</AppText>
+                  <AppText numberOfLines={2}>{thread.title || gt("Untitled thread")}</AppText>
                   <AppText className="text-xs text-foreground-muted">
-                    {project?.title ?? "Project"} ·{" "}
-                    {catalog.entries.get(thread.environmentId)?.target.label ?? "Environment"}
+                    {project?.title ?? gt("Project")} ·{" "}
+                    {catalog.entries.get(thread.environmentId)?.target.label ?? gt("Environment")}
                   </AppText>
                 </Pressable>
               );

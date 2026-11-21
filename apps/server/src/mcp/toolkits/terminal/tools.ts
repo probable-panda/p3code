@@ -6,7 +6,7 @@ import {
   TerminalWriteInput,
 } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
-import { Tool, Toolkit } from "effect/ai";
+import { McpSchema, Tool, Toolkit } from "effect/ai";
 import * as ThreadManagement from "../../../orchestration-v2/ThreadManagementService.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as TerminalMcpService from "../../TerminalMcpService.ts";
@@ -27,7 +27,8 @@ const list = Tool.make("terminal_list", {
   success: Schema.Struct({ terminals: Schema.Array(TerminalSummary) }),
 })
   .annotate(Tool.Readonly, true)
-  .annotate(Tool.Destructive, false);
+  .annotate(Tool.Destructive, false)
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromOutsideClients);
 const read = Tool.make("terminal_read", {
   ...shared,
   description:
@@ -40,7 +41,8 @@ const read = Tool.make("terminal_read", {
   success: TerminalReadResult,
 })
   .annotate(Tool.Readonly, true)
-  .annotate(Tool.Destructive, false);
+  .annotate(Tool.Destructive, false)
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromOutsideClients);
 const write = Tool.make("terminal_write", {
   ...shared,
   description:
@@ -50,5 +52,7 @@ const write = Tool.make("terminal_write", {
     data: TerminalWriteInput.fields.data,
   }),
   success: Schema.Struct({ sent: Schema.Literal(true) }),
-}).annotate(Tool.Destructive, true);
+})
+  .annotate(Tool.Destructive, true)
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromOutsideClients);
 export const TerminalToolkit = Toolkit.make(list, read, write);

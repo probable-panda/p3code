@@ -1,3 +1,4 @@
+import { useGT } from "gt-react";
 import { useAtomValue } from "@effect/atom-react";
 import { createWaitingQuestionThreadsAtom } from "@t3tools/client-runtime/state/thread-inbox";
 import { useNavigate } from "@tanstack/react-router";
@@ -17,6 +18,7 @@ const waitingQuestionsAtom = createWaitingQuestionThreadsAtom({
 });
 
 export function NeedsYou({ compact = false }: { compact?: boolean }) {
+  const gt = useGT();
   const threads = useAtomValue(waitingQuestionsAtom);
   const projects = useProjects();
   const catalog = useAtomValue(environmentCatalog.catalogValueAtom);
@@ -32,13 +34,17 @@ export function NeedsYou({ compact = false }: { compact?: boolean }) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={<Button variant="outline" size={compact ? "icon-tiny" : "sm"} />}
-        aria-label={`Needs you: ${threads.length} threads waiting for an answer`}
+        aria-label={gt("Needs you: {count} threads waiting for an answer", {
+          count: threads.length,
+        })}
       >
         {!compact && <MessageCircleQuestionIcon />}
-        <span aria-live="polite">{compact ? threads.length : `Needs you · ${threads.length}`}</span>
+        <span aria-live="polite">
+          {compact ? threads.length : gt("Needs you · {count}", { count: threads.length })}
+        </span>
       </PopoverTrigger>
       <PopoverPopup width="md" padding="compact" align="start">
-        <p className="mb-2 text-sm font-medium">Waiting for your answer</p>
+        <p className="mb-2 text-sm font-medium">{gt("Waiting for your answer")}</p>
         <div className="max-h-80 overflow-y-auto">
           {threads.map((thread) => {
             const project = projects.find(
@@ -59,10 +65,12 @@ export function NeedsYou({ compact = false }: { compact?: boolean }) {
                   });
                 }}
               >
-                <span className="w-full truncate text-sm">{thread.title || "Untitled thread"}</span>
+                <span className="w-full truncate text-sm">
+                  {thread.title || gt("Untitled thread")}
+                </span>
                 <span className="w-full truncate text-xs text-muted-foreground">
-                  {project?.title ?? "Project"} ·{" "}
-                  {catalog.entries.get(thread.environmentId)?.target.label ?? "Environment"}
+                  {project?.title ?? gt("Project")} ·{" "}
+                  {catalog.entries.get(thread.environmentId)?.target.label ?? gt("Environment")}
                 </span>
               </button>
             );

@@ -65,7 +65,7 @@ const fixture = Effect.gen(function* () {
           truncated: false,
         };
       }),
-    write: (input, options) =>
+    write: (input, _viewerId, options) =>
       Effect.gen(function* () {
         if (options?.requireRunning && (yield* Ref.get(status)) !== "running")
           return yield* new TerminalNotRunningError(input);
